@@ -1,0 +1,38 @@
+# Script runtime outputs
+*.log
+Cohesity-Sizing-*.csv
+Cohesity-Stats-*.csv
+*-GrowthRate-*.csv
+TeamsStatsUserActivity-*.csv
+
+# Secrets and certificates
+*.pfx
+*.cer
+*.pem
+*.key
+*.p12
+.env
+.env.*
+credentials*.json
+**/secrets/
+
+# PowerShell / local
+*.ps1xml.bak
+*.bak
+
+# IDE / editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*~
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Local notes / exports
+*.local.md
+*.local.pdf
