@@ -1,33 +1,44 @@
+#----------------------------------------------------------------------------------------------------
+# Copyright (c) Cohesity 2026. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License”); 
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#----------------------------------------------------------------------------------------------------
+
 <# 
 .SYNOPSIS
- This tool is PowerShell script that connects to cloud services (M365, Google Workspace etc.) and collects the usage information for various workloads. 
- The size of the data calculated by the script aligns with the data backed up by Cohesity products. At the end of script, all collected information is exported to a CSV file. 
-
+    This tool is PowerShell script that connects to cloud services (M365, Google Workspace etc.) and  
+    collects the usage information for various workloads. The size of the data calculated by the script 
+    aligns with the data backed up by Cohesity products. At the end of script, all collected information 
+    is exported to a CSV file. 
 .DESCRIPTION  
- Current release supports sizing of following workloads. 
+    Current release supports sizing of following workloads. 
  
- M365: 
-    1. Exchange Online
-    2. SharePoint Online
-    3. OneDrive for Business
-    4. Teams Chat
- Google Workspace:
-    1. GMail
-    2. Google Drive
-Salesforce:
-   1. Active Users
-   2. Data Storage
-   3. File Storage
- 
+    M365: 
+        1. Exchange Online
+        2. SharePoint Online
+        3. OneDrive for Business
+        4. Teams Chat
+    Google Workspace:
+        1. GMail
+        2. Google Drive
+    Salesforce:
+        1. Active Users
+        2. Data Storage
+        3. File Storage
 .INPUTS
- 
 .OUTPUTS
- 1. Output report is generated in CSV format at same location of this script. Report name is 'Cohesity-Stats- yyyyMMdd-hhmmss.csv'.
- 2. Log file is generated at the same location of this script. Log name is 'Cohesity-Sizing-Tool.log'.
-
+    1. Output report is generated in CSV format at same location of this script. Report name is 'Cohesity-Stats- yyyyMMdd-hhmmss.csv'.
+    2. Log file is generated at the same location of this script. Log name is 'Cohesity-Sizing-Tool-yyyyMMdd-hhmmss.log'.
 .NOTES
-Copyright (c) Cohesity 2026. All rights reserved.
-
+    ScriptVersion: 1.0.0
+.LINK
+    https://github.com/cohesity/cohesity-sizing-tool
 #>
 
 #----------------------------------------------------------------------------------------------------
@@ -177,11 +188,12 @@ function Test-ScriptVersion
         $currentVersion = Get-ScriptVersion -ScriptPath "$($MyInvocation.ScriptName)"
 
         # Get latest version number from download location
-        $scriptUrl = "https://nspartifacts.blob.core.windows.net/prod/Cohesity-Sizing-Tool.ps1"
-        $latestScriptString = Invoke-WebRequest $scriptUrl
-        $latestVersionString = $([Regex]::Matches($latestScriptString.RawContent, "Version: [\d\.]+\s"))[0].Value.ToString()
-        $latestVersionValues = $latestVersionString -split ': '
-        $latestVersion = $latestVersionValues[1].Trim()
+        $scriptUrl = "https://api.github.com/repos/cohesity/cohesity-sizing-tool/releases/latest"
+        $release = (Invoke-RestMethod -Uri $scriptUrl -Headers @{
+                        "User-Agent" = "cohesity-sizing-tool"
+                        "Accept"     = "application/vnd.github+json"}
+                   )
+        $latestVersion = $release.tag_name.TrimStart("v")
 
         if([System.Version]$latestVersion -gt [System.Version]$currentVersion)
         {
@@ -194,8 +206,9 @@ function Test-ScriptVersion
                 Add-Log "`nProceeding with current version [$currentVersion]." -Level Warn
             }
             else
-            {               
-                Add-Log "`nPlease download and run the latest version of the script from official link. This script will now exit."
+            {
+                $htmlUrl = $release.html_url
+                Add-Log "`nPlease download and run the latest version of the script from $([char]27)[4m$html_url$([char]27)[24m. This script will now exit."
                 Pause
                 exit
             }

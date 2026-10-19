@@ -20,6 +20,9 @@ credentials*.json
 *.ps1xml.bak
 *.bak
 
+# Visual Studio cache/options directory
+.vs/
+
 # IDE / editor
 .vscode/*
 !.vscode/extensions.json
