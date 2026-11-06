@@ -36,7 +36,7 @@
     1. Output report is generated in CSV format at same location of this script. Report name is 'Cohesity-Stats- yyyyMMdd-hhmmss.csv'.
     2. Log file is generated at the same location of this script. Log name is 'Cohesity-Sizing-Tool-yyyyMMdd-hhmmss.log'.
 .NOTES
-    ScriptVersion: 1.0.0
+    ScriptVersion: 1.1.0
 .LINK
     https://github.com/cohesity/cohesity-sizing-tool
 #>
@@ -208,7 +208,7 @@ function Test-ScriptVersion
             else
             {
                 $htmlUrl = $release.html_url
-                Add-Log "`nPlease download and run the latest version of the script from $([char]27)[4m$html_url$([char]27)[24m. This script will now exit."
+                Add-Log "`nPlease download and run the latest version of the script from $([char]27)[4m$htmlUrl$([char]27)[24m. This script will now exit."
                 Pause
                 exit
             }
@@ -271,13 +271,13 @@ function Add-Stats
     $stats | Add-Member -MemberType NoteProperty -Name 'Type' -Value $ObjectType
     $stats | Add-Member -MemberType NoteProperty -Name 'Count' -Value $ObjectCount
     $stats | Add-Member -MemberType NoteProperty -Name 'Item Count' -Value $ItemCount
-    $stats | Add-Member -MemberType NoteProperty -Name 'Item Size (GiB)' -Value $ItemSize
+    $stats | Add-Member -MemberType NoteProperty -Name 'Item Size (GB)' -Value $ItemSize
     $stats | Add-Member -MemberType NoteProperty -Name 'Recoverable Item Count' -Value $RecoverableItemCount
-    $stats | Add-Member -MemberType NoteProperty -Name 'Recoverable Item Size (GiB)' -Value $RecoverableItemSize
+    $stats | Add-Member -MemberType NoteProperty -Name 'Recoverable Item Size (GB)' -Value $RecoverableItemSize
     $stats | Add-Member -MemberType NoteProperty -Name 'Total Item Count' -Value $TotalItemCount
-    $stats | Add-Member -MemberType NoteProperty -Name 'Total Item Size (GiB)' -Value $TotalItemSize
-    $stats | Add-Member -MemberType NoteProperty -Name 'Effective Size in ASP (GiB)' -Value $EffectiveItemSize
-    $stats | Add-Member -MemberType NoteProperty -Name 'Data Growth over last 180 days(GiB)' -Value $DataGrowth
+    $stats | Add-Member -MemberType NoteProperty -Name 'Total Item Size (GB)' -Value $TotalItemSize
+    $stats | Add-Member -MemberType NoteProperty -Name 'Effective Size in ASP (GB)' -Value $EffectiveItemSize
+    $stats | Add-Member -MemberType NoteProperty -Name 'Data Growth over last 180 days(GB)' -Value $DataGrowth
     $stats | Add-Member -MemberType NoteProperty -Name 'Growth Rate over last 180 days(%)' -Value $GrowthRate
     $stats | Add-Member -MemberType NoteProperty -Name 'Daily Change Rate over last 180 days(%)' -Value $ChangeRate
     return $stats
@@ -292,7 +292,7 @@ function Format-Bytes
     Param
     (
         [Parameter(ValueFromPipeline=$true)] [ValidateNotNullOrEmpty()] $Number,
-        [Parameter(Mandatory=$false)] [ValidateSet("Bytes","KiB","MiB","GiB","TiB","PiB")] [string]$Unit
+        [Parameter(Mandatory=$false)] [ValidateSet("Bytes","KB","MB","GB","TB","PB")] [string]$Unit
     )
     Begin
     {
@@ -301,21 +301,21 @@ function Format-Bytes
     {
         if([string]::IsNullOrEmpty($Unit))
         {
-            if($Number -lt 1024) {$Unit = "Bytes"}
-            if(($Number -ge 1Kb) -and ($Number -lt 1Mb)) {$Unit = "KiB"}
-            if(($Number -ge 1Mb) -and ($Number -lt 1Gb)) {$Unit = "MiB"}
-            if(($Number -ge 1Gb) -and ($Number -lt 1Tb)) {$Unit = "GiB"}
-            if(($Number -ge 1Tb) -and ($Number -lt 1Pb)) {$Unit = "TiB"}
-            if( $Number -ge 1Pb) {$Unit = "PiB"}
+            if($Number -lt 1000) {$Unit = "Bytes"}
+            if(($Number -ge 1e3) -and ($Number -lt 1e6)) {$Unit = "KB"}
+            if(($Number -ge 1e6) -and ($Number -lt 1e9)) {$Unit = "MB"}
+            if(($Number -ge 1e9) -and ($Number -lt 1e12)) {$Unit = "GB"}
+            if(($Number -ge 1e12) -and ($Number -lt 1e15)) {$Unit = "TB"}
+            if( $Number -ge 1e15) {$Unit = "PB"}
         }
         Switch ($Unit)
         {
             "Bytes" { $num = $Number }
-            "KiB" {$num = $Number/1Kb}
-            "MiB" {$num = $Number/1Mb}
-            "GiB" {$num = $Number/1Gb}
-            "TiB" {$num = $Number/1Tb}
-            "PiB" {$num = $Number/1Pb}
+            "KB" {$num = $Number/1e3}
+            "MB" {$num = $Number/1e6}
+            "GB" {$num = $Number/1e9}
+            "TB" {$num = $Number/1e12}
+            "PB" {$num = $Number/1e15}
         }
         $num = "{0:f3}" -f $num
         $outNum = [System.Convert]::ToDecimal($num)
@@ -579,6 +579,15 @@ function Select-M365Options
         Add-Log "`nEnter the SharePoint Online admin url. Usually in the form https://<tenant>-admin.sharepoint.com" -Level Action
         $global:SPOAdminUrl = Read-Host "Enter the admin URL"
     }
+    if($global:ProcessSharePoint)
+    {
+        Add-Log "`nDo you want to get count of subsites from all the sites in SharePoint Online: [Y] Yes [N] No (Default: [N])" -Level Action
+        $subsiteInput = Read-Host "Enter your choice"
+        if($subsiteInput -match "[yY]")
+        {
+            $global:ProcessSharePointSubsites = $true
+        }
+    }
     if($global:ProcessExchange -or $global:ProcessOneDrive)
     {
         Add-Log "`nDo you want to limit the scope of Exchange Online and OneDrive to users in a specific AD group: [Y] Yes [N] No (Default: [N])" -Level Action
@@ -587,15 +596,6 @@ function Select-M365Options
         {
             $global:LimitScopeToADGroup = $true
             $global:ADGroup = Read-Host "Enter the one or more AD group display names separated by comma"
-        }
-    }
-    if($global:ProcessSharePoint)
-    {
-        Add-Log "`nDo you want to get count of subsites from all the sites in SharePoint Online: [Y] Yes [N] No (Default: [N])" -Level Action
-        $subsiteInput = Read-Host "Enter your choice"
-        if($subsiteInput -match "[yY]")
-        {
-            $global:ProcessSharePointSubsites = $true
         }
     }
 }
@@ -894,11 +894,11 @@ function Get-GrowthRate
         $sizeGrowth = ($sizeGrowth * 180) / $numDays
     }
     $percentageGrowth = [math]::round(($sizeGrowth*100)/$PreviousSize,2)
-    $sizeGrowthGB = Format-Bytes $sizeGrowth GiB
+    $sizeGrowthGB = Format-Bytes $sizeGrowth GB
     $dailyChangeRate = [math]::round(($sumChangeRate/$days),5)
     $growthStat = $sizeGrowthGB, "$percentageGrowth`%", "$dailyChangeRate`%"
     
-    Add-Log "Projected data growth for $Type is $sizeGrowthGB GiB over 180 days based on data received for last $days days."
+    Add-Log "Projected data growth for $Type is $sizeGrowthGB GB over 180 days based on data received for last $days days."
     
     return $growthStat
 }
@@ -1095,9 +1095,9 @@ function Get-ExchangeMailboxStats
         $recoverableItemCount += $mailboxStats.DeletedItemCount
         $recoverableItemSizeBytes  += $mailboxStats.TotalDeletedItemSize.Value.ToBytes()
 
-        $mlbSize = Format-Bytes($mailboxStats.TotalItemSize.Value.ToBytes() + $mailboxStats.TotalDeletedItemSize.Value.ToBytes()) GiB
+        $mlbSize = Format-Bytes($mailboxStats.TotalItemSize.Value.ToBytes() + $mailboxStats.TotalDeletedItemSize.Value.ToBytes()) GB
 
-        Add-Log "Mailbox: $mailbox, Primary Mailbox Size: $mlbSize GiB." -Level LogOnly
+        Add-Log "Mailbox: $mailbox, Primary Mailbox Size: $mlbSize GB." -Level LogOnly
     }
 
     return [PSCustomObject]@{
@@ -1309,12 +1309,12 @@ function Start-ExchangeThreadJobs
     -ObjectType "$ExoMode Active Mailboxes" `
     -ObjectCount $allMailboxesCount `
     -ItemCount $activeItemCount `
-    -ItemSize (Format-Bytes($activeItemsSizeBytes) GiB) `
+    -ItemSize (Format-Bytes($activeItemsSizeBytes) GB) `
     -RecoverableItemCount $recoverableItemsCount `
-    -RecoverableItemSize (Format-Bytes($recoverableItemsSizeBytes) GiB) `
+    -RecoverableItemSize (Format-Bytes($recoverableItemsSizeBytes) GB) `
     -TotalItemCount ($activeItemCount + $recoverableItemsCount) `
-    -TotalItemSize (Format-Bytes($activeItemsSizeBytes + $recoverableItemsSizeBytes) GiB) `
-    -EffectiveItemSize (Format-Bytes(($activeItemsSizeBytes + $recoverableItemsSizeBytes) * $global:ExchangeMultiplicationFactor) GiB)
+    -TotalItemSize (Format-Bytes($activeItemsSizeBytes + $recoverableItemsSizeBytes) GB) `
+    -EffectiveItemSize (Format-Bytes(($activeItemsSizeBytes + $recoverableItemsSizeBytes) * $global:ExchangeMultiplicationFactor) GB)
     
     if($ExoMode -ne 'PublicFolder')
     {
@@ -1323,12 +1323,12 @@ function Start-ExchangeThreadJobs
         -ObjectType "$ExoMode Archive Mailboxes" `
         -ObjectCount $allArchiveMailboxesCount `
         -ItemCount $archiveItemsCount `
-        -ItemSize (Format-Bytes($archiveItemsSizeBytes) GiB) `
+        -ItemSize (Format-Bytes($archiveItemsSizeBytes) GB) `
         -RecoverableItemCount $archiveRecoverableItemsCount `
-        -RecoverableItemSize (Format-Bytes($archiveRecoverableItemsSizeBytes) GiB) `
+        -RecoverableItemSize (Format-Bytes($archiveRecoverableItemsSizeBytes) GB) `
         -TotalItemCount ($archiveItemsCount + $archiveRecoverableItemsCount) `
-        -TotalItemSize (Format-Bytes($archiveItemsSizeBytes + $archiveRecoverableItemsSizeBytes) GiB) `
-        -EffectiveItemSize (Format-Bytes(($archiveItemsSizeBytes + $archiveRecoverableItemsSizeBytes) * $global:ExchangeMultiplicationFactor) GiB)
+        -TotalItemSize (Format-Bytes($archiveItemsSizeBytes + $archiveRecoverableItemsSizeBytes) GB) `
+        -EffectiveItemSize (Format-Bytes(($archiveItemsSizeBytes + $archiveRecoverableItemsSizeBytes) * $global:ExchangeMultiplicationFactor) GB)
     }
 
     # Updating the final Exchange Online output variables
@@ -1392,22 +1392,22 @@ function Get-ExchangeStats
     -ObjectType "Total Mailboxes with Default Options Only" `
     -ObjectCount $global:exoDefaultMailboxes `
     -ItemCount $global:exoDefaultActiveMailboxItemCount `
-    -ItemSize $(Format-Bytes($global:exoDefaultActiveMailboxItemsSize) GiB) `
+    -ItemSize $(Format-Bytes($global:exoDefaultActiveMailboxItemsSize) GB) `
     -TotalItemCount $global:exoDefaultActiveMailboxItemCount `
-    -TotalItemSize $(Format-Bytes($global:exoDefaultActiveMailboxItemsSize) GiB) `
-    -EffectiveItemSize $(Format-Bytes($global:exoDefaultActiveMailboxItemsSize * $global:ExchangeMultiplicationFactor) GiB)
+    -TotalItemSize $(Format-Bytes($global:exoDefaultActiveMailboxItemsSize) GB) `
+    -EffectiveItemSize $(Format-Bytes($global:exoDefaultActiveMailboxItemsSize * $global:ExchangeMultiplicationFactor) GB)
     
     # Generate total output for all options
     $exoOutput += Add-Stats -Category "Exchange Online" `
     -ObjectType "Total Mailboxes with All Option Enabled" `
     -ObjectCount $($global:exoTotalMailboxes + $global:exoTotalArchiveMailboxes) `
     -ItemCount $($global:exoTotalActiveMailboxItemCount + $global:exoTotalArchiveMailboxItemCount) `
-    -ItemSize $(Format-Bytes($global:exoTotalActiveMailboxItemsSize + $global:exoTotalArchiveMailboxItemsSize) GiB) `
+    -ItemSize $(Format-Bytes($global:exoTotalActiveMailboxItemsSize + $global:exoTotalArchiveMailboxItemsSize) GB) `
     -RecoverableItemCount $($global:exoTotalRecoverableItemCount + $global:exoTotalArchiveRecoverableItemCount) `
-    -RecoverableItemSize $(Format-Bytes($global:exoTotalRecoverableItemsSize + $global:exoTotalArchiveRecoverableItemsSize) GiB) `
+    -RecoverableItemSize $(Format-Bytes($global:exoTotalRecoverableItemsSize + $global:exoTotalArchiveRecoverableItemsSize) GB) `
     -TotalItemCount $($global:exoTotalActiveMailboxItemCount + $global:exoTotalArchiveMailboxItemCount + $global:exoTotalRecoverableItemCount + $global:exoTotalArchiveRecoverableItemCount) `
-    -TotalItemSize $(Format-Bytes($global:exoTotalActiveMailboxItemsSize + $global:exoTotalArchiveMailboxItemsSize + $global:exoTotalRecoverableItemsSize + $global:exoTotalArchiveRecoverableItemsSize) GiB) `
-    -EffectiveItemSize $(Format-Bytes(($global:exoTotalActiveMailboxItemsSize + $global:exoTotalArchiveMailboxItemsSize + $global:exoTotalRecoverableItemsSize + $global:exoTotalArchiveRecoverableItemsSize) * $global:ExchangeMultiplicationFactor) GiB) `
+    -TotalItemSize $(Format-Bytes($global:exoTotalActiveMailboxItemsSize + $global:exoTotalArchiveMailboxItemsSize + $global:exoTotalRecoverableItemsSize + $global:exoTotalArchiveRecoverableItemsSize) GB) `
+    -EffectiveItemSize $(Format-Bytes(($global:exoTotalActiveMailboxItemsSize + $global:exoTotalArchiveMailboxItemsSize + $global:exoTotalRecoverableItemsSize + $global:exoTotalArchiveRecoverableItemsSize) * $global:ExchangeMultiplicationFactor) GB) `
     -DataGrowth $exchangeGrowthStats[0]  `
     -GrowthRate $exchangeGrowthStats[1]  `
     -ChangeRate $exchangeGrowthStats[2]
@@ -1470,9 +1470,9 @@ function Get-SharePointStats
         # Get storage statistics for SharePoint site data
         $allSharePointTotalSize += $sharePointSite.StorageUsage
         
-        # Log the individual site size in GiB
-        $stTotalSize = [Math]::Round($sharePointSite.StorageUsage/1024,3)
-        Add-Log "Site: $siteUrl Size: $stTotalSize GiB." -Level LogOnly
+        # Log the individual site size in GB
+        $stTotalSize = [Math]::Round(($sharePointSite.StorageUsage * 1024 * 1024)/1e9,3)
+        Add-Log "Site: $siteUrl Size: $stTotalSize GB." -Level LogOnly
 
         if($global:ProcessSharePointSubsites)
         {
@@ -1499,9 +1499,9 @@ function Get-SharePointStats
 
     # Get SharePoint Online data. 
     # SharePoint Storage Usage property output is in MBs.
-    $sharePointActualSize = [Math]::Round($allSharePointTotalSize/[math]::Pow(1024,1),3)
+    $sharePointActualSize = [Math]::Round(($allSharePointTotalSize * 1024 * 1024)/1e9,3)
     
-    Add-Log "Completed statistics collection for $SPOMode sites. Total Sites: $allSharePointSitesCount, Total Items: --, Total Size: $sharePointActualSize GiB."
+    Add-Log "Completed statistics collection for $SPOMode sites. Total Sites: $allSharePointSitesCount, Total Items: --, Total Size: $sharePointActualSize GB."
 
     # For total output calculation is in bytes so converting the output into bytes
     $global:spoSiteCount += $allSharePointSitesCount
@@ -1523,7 +1523,7 @@ function Get-SharePointStats
         }
         # Get SharePoint Online storage usage report for 180 days
         $sharepointGrowthStats = Get-GrowthRate -Type SharePoint
-        $sharePointOutput += Add-Stats -Category "SharePoint Online" -ObjectType "Total Sites" -ObjectCount $global:spoSiteCount -TotalItemSize $(Format-Bytes($global:spoTotalSize) GiB) -EffectiveItemSize $(Format-Bytes($global:spoTotalSize) GiB) -DataGrowth $sharepointGrowthStats[0] -GrowthRate $sharepointGrowthStats[1] -ChangeRate $sharepointGrowthStats[2]
+        $sharePointOutput += Add-Stats -Category "SharePoint Online" -ObjectType "Total Sites" -ObjectCount $global:spoSiteCount -TotalItemSize $(Format-Bytes($global:spoTotalSize) GB) -EffectiveItemSize $(Format-Bytes($global:spoTotalSize) GB) -DataGrowth $sharepointGrowthStats[0] -GrowthRate $sharepointGrowthStats[1] -ChangeRate $sharepointGrowthStats[2]
     }
 
     return $sharePointOutput
@@ -1612,14 +1612,14 @@ function Get-OneDriveStats
         # Get storage statistics for OneDrive site data
         $allOneDriveSitesTotalSize += $oneDriveSite.StorageUsage             
 
-        # Log the individual OneDrive size in GiB
-        $odTotalSize = [Math]::Round($oneDriveSite.StorageUsage/1024,3)
-        Add-Log "Site: $siteUrl Size: $odTotalSize GiB." -Level LogOnly
+        # Log the individual OneDrive size in GB
+        $odTotalSize = [Math]::Round(($oneDriveSite.StorageUsage * 1024 * 1024)/1e9,3)
+        Add-Log "Site: $siteUrl Size: $odTotalSize GB." -Level LogOnly
     }
     Write-Progress -Activity "Calculating size of all OneDrive sites." -Status "Ready" -Completed
     
     # Get OneDrive data 
-    $oneDriveActualSize = [Math]::Round($allOneDriveSitesTotalSize/[math]::Pow(1024,1),3)
+    $oneDriveActualSize = [Math]::Round(($allOneDriveSitesTotalSize * 1024 * 1024)/1e9,3)
 
     # For total output calculation is in bytes so converting the output into bytes
     $global:oneDriveSiteCount += $allOneDriveSitesCount
@@ -1629,7 +1629,7 @@ function Get-OneDriveStats
     $oneDriveGrowthStats = Get-GrowthRate -Type OneDrive
 
     $oneDriveOutput += Add-Stats -Category "OneDrive for Business" -ObjectType "Personal Sites" -ObjectCount $allOneDriveSitesCount -TotalItemSize $oneDriveActualSize -EffectiveItemSize $oneDriveActualSize -DataGrowth $oneDriveGrowthStats[0] -GrowthRate $oneDriveGrowthStats[1] -ChangeRate $oneDriveGrowthStats[2]
-    Add-Log "Completed statistics collection for OneDrive. Total Sites: $allOneDriveSitesCount, Total Items: --, Total Size: $oneDriveActualSize TiB." 
+    Add-Log "Completed statistics collection for OneDrive. Total Sites: $allOneDriveSitesCount, Total Items: --, Total Size: $oneDriveActualSize GB." 
 
     return $oneDriveOutput
 }
@@ -1850,8 +1850,8 @@ function Get-M365Sizing
         $global:output += Add-Stats -Category " "
     }
 
-    $totalWorkloadSize = Format-Bytes($global:exoTotalActiveMailboxItemsSize + $global:exoTotalArchiveMailboxItemsSize + $global:exoTotalRecoverableItemsSize + $global:exoTotalArchiveRecoverableItemsSize + $global:spoTotalSize + $global:oneDriveTotalSize) GiB
-    $totalWorkloadEffectiveSize = Format-Bytes((($global:exoTotalActiveMailboxItemsSize + $global:exoTotalArchiveMailboxItemsSize + $global:exoTotalRecoverableItemsSize + $global:exoTotalArchiveRecoverableItemsSize) * $global:ExchangeMultiplicationFactor) + $global:spoTotalSize + $global:oneDriveTotalSize) GiB 
+    $totalWorkloadSize = Format-Bytes($global:exoTotalActiveMailboxItemsSize + $global:exoTotalArchiveMailboxItemsSize + $global:exoTotalRecoverableItemsSize + $global:exoTotalArchiveRecoverableItemsSize + $global:spoTotalSize + $global:oneDriveTotalSize) GB
+    $totalWorkloadEffectiveSize = Format-Bytes((($global:exoTotalActiveMailboxItemsSize + $global:exoTotalArchiveMailboxItemsSize + $global:exoTotalRecoverableItemsSize + $global:exoTotalArchiveRecoverableItemsSize) * $global:ExchangeMultiplicationFactor) + $global:spoTotalSize + $global:oneDriveTotalSize) GB 
 
     $licUsers = Get-M365LicensedUsers
     $global:output += Add-Stats -Category "M365 Tenant" -ObjectType "Licensed Users" -ObjectCount $licUsers
@@ -2051,9 +2051,12 @@ function Get-GoogleSizing
     }
 
     # Get Google workload usage statistics
-    $totalDriveUsage = [Math]::Round((($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:drive_used_quota_in_mb'}).intValue)/1024,3)
-    $totalGmailUsage = [Math]::Round((($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:gmail_used_quota_in_mb'}).intValue)/1024,3)
-    $totalSharedDriveUsage = [Math]::Round((($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:shared_drive_used_quota_in_mb'}).intValue)/1024,3)
+    $totalDriveUsageGiB = ($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:drive_used_quota_in_mb'}).intValue
+    $totalDriveUsage = [Math]::Round(($totalDriveUsageGiB * 1024 * 1024)/1e9,3)
+    $totalGmailUsageGiB = ($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:gmail_used_quota_in_mb'}).intValue
+    $totalGmailUsage = [Math]::Round(($totalGmailUsageGiB * 1024 * 1024)/1e9,3)
+    $totalSharedDriveUsageGiB = ($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:shared_drive_used_quota_in_mb'}).intValue
+    $totalSharedDriveUsage = [Math]::Round(($totalSharedDriveUsageGiB * 1024 * 1024)/1e9,3)
     $totalGoogleUsage = $totalDriveUsage + $totalGmailUsage + $totalSharedDriveUsage
     $totalEffectiveGoogleUsage = $totalDriveUsage + $($totalGmailUsage * $global:GmailMultiplicationFactor) + $totalSharedDriveUsage
 
@@ -2063,13 +2066,15 @@ function Get-GoogleSizing
     $totalSharedDrives = $sharedDrivesList.Count
 
     # Get Google customer total usage
-    $totalCustomerQuota  = [Math]::Round((($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:total_quota_in_mb'}).intValue)/1024,3)
-    $totalCustUsedQuota  = [Math]::Round((($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:customer_used_quota_in_mb'}).intValue)/1024,3)
+    $totalCustomerQuotaGiB = ($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:total_quota_in_mb'}).intValue
+    $totalCustomerQuota  = [Math]::Round(($totalCustomerQuotaGiB * 1024 * 1024)/1e9,3)
+    $totalCustUsedQuotaGiB = ($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:customer_used_quota_in_mb'}).intValue
+    $totalCustUsedQuota  = [Math]::Round(($totalCustUsedQuotaGiB * 1024 * 1024)/1e9,3)
 
     # Get growth rate for 180 days
     $sizeToday = ($responseObj.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:customer_used_quota_in_mb'}).intValue
     $size180daysBefore = ($responseObjOld.usageReports[0].parameters | Where-Object {$_.name -eq 'accounts:customer_used_quota_in_mb'}).intValue
-    $googleGrowthSize = [Math]::Round(($sizeToday-$size180daysBefore)/1024,3)
+    $googleGrowthSize = [Math]::Round((($sizeToday-$size180daysBefore) * 1024 * 1024)/1e9,3)
     $googleGrowthRate = [Math]::Round(((($sizeToday-$size180daysBefore)*100)/$size180daysBefore),2)
 
     # Generating output for Google workspace
@@ -2412,37 +2417,37 @@ function Get-SalesforceSizing
     # Calculating Salesforce storage usage based on limits and record counts of unstructured and associated objects.
     $dataStorageUsedMB = [decimal]$limitsResponse.DataStorageMB.Max - [decimal]$limitsResponse.DataStorageMB.Remaining
     $fileStorageUsedMB = [decimal]$limitsResponse.FileStorageMB.Max - [decimal]$limitsResponse.FileStorageMB.Remaining
-    $dataStorageUsedGiB = [Math]::Round(( $dataStorageUsedMB / [math]::Pow(1024,1)), 3)
-    $fileStorageUsedGiB = [Math]::Round(($fileStorageUsedMB / [math]::Pow(1024,1)), 3)
+    $dataStorageUsedGB = [Math]::Round((($dataStorageUsedMB * 1024 * 1024)/1e9), 3)
+    $fileStorageUsedGB = [Math]::Round((($fileStorageUsedMB * 1024 * 1024)/1e9), 3)
     
     # Adding 20% buffer for Salesforce data storage usage
-    $effectiveDataStorageUsedGiB = [Math]::Round(($dataStorageUsedGiB * 1.2), 3) 
+    $effectiveDataStorageUsedGB = [Math]::Round(($dataStorageUsedGB * 1.2), 3) 
 
-    Add-Log "Salesforce limits-based structured data storage used: $effectiveDataStorageUsedGiB GiB"
+    Add-Log "Salesforce limits-based structured data storage used: $effectiveDataStorageUsedGB GB"
 
     # Adding size for additional structured data storage usage based on record counts of unstructured and associated objects. 
     # 2KB per record is used as a rough estimate for additional structured data storage usage.
-    $additionalSalesforceDataUsedGiB = [Math]::Round(((($orgUsageDetails.TotalUnstructuredDataRecordCount + $orgUsageDetails.TotalAssociatedObjectRecordCount) * 2) / [math]::Pow(1024,2)),3)
+    $additionalSalesforceDataUsedGB = [Math]::Round(((($orgUsageDetails.TotalUnstructuredDataRecordCount + $orgUsageDetails.TotalAssociatedObjectRecordCount) * 2 * 1024) /1e9),3)
     
     # Adding 20% buffer for Salesforce optional structured data storage usage
-    $effectiveAdditionalDataStorageUsedGiB = [Math]::Round(($additionalSalesforceDataUsedGiB * 1.2), 3)
+    $effectiveAdditionalDataStorageUsedGB = [Math]::Round(($additionalSalesforceDataUsedGB * 1.2), 3)
 
-    Add-Log "Salesforce optional structured data storage used: $effectiveAdditionalDataStorageUsedGiB GiB"
+    Add-Log "Salesforce optional structured data storage used: $effectiveAdditionalDataStorageUsedGB GB"
 
     # Adding 0.2 GB is for Metadata storage & 20% for buffer unstructured data storage usage
-    $stagingDiskSizeGiB = [Math]::Round((($fileStorageUsedGiB + 0.2) * 1.2), 3) 
+    $stagingDiskSizeGB = [Math]::Round((($fileStorageUsedGB + 0.2) * 1.2), 3) 
 
-    Add-Log "Salesforce recommended staging disk size: $stagingDiskSizeGiB GiB"
+    Add-Log "Salesforce recommended staging disk size: $stagingDiskSizeGB GB"
 
-    $totalStorageUsedGiB = [Math]::Round(($effectiveDataStorageUsedGiB + $effectiveAdditionalDataStorageUsedGiB + $stagingDiskSizeGiB), 3)
+    $totalStorageUsedGB = [Math]::Round(($effectiveDataStorageUsedGB + $effectiveAdditionalDataStorageUsedGB + $stagingDiskSizeGB), 3)
    
-    Add-Log "Salesforce total data used by org: $totalStorageUsedGiB GiB"
+    Add-Log "Salesforce total data used by org: $totalStorageUsedGB GB"
 
     $global:output += Add-Stats -Category " " -ObjectType "Active Users" -ObjectCount $activeUsers
-    $global:output += Add-Stats -Category " " -ObjectType "Data Storage Used" -TotalItemSize $effectiveDataStorageUsedGiB
-    $global:output += Add-Stats -Category " " -ObjectType "Optional Data Storage Used" -TotalItemSize $effectiveAdditionalDataStorageUsedGiB
-    $global:output += Add-Stats -Category " " -ObjectType "File Storage Used" -TotalItemSize $stagingDiskSizeGiB
-    $global:output += Add-Stats -Category "Salesforce" -ObjectType "Total Storage Used" -TotalItemSize $totalStorageUsedGiB
+    $global:output += Add-Stats -Category " " -ObjectType "Data Storage Used" -TotalItemSize $effectiveDataStorageUsedGB
+    $global:output += Add-Stats -Category " " -ObjectType "Optional Data Storage Used" -TotalItemSize $effectiveAdditionalDataStorageUsedGB
+    $global:output += Add-Stats -Category " " -ObjectType "File Storage Used" -TotalItemSize $stagingDiskSizeGB
+    $global:output += Add-Stats -Category "Salesforce" -ObjectType "Total Storage Used" -TotalItemSize $totalStorageUsedGB
     $global:output += Add-Stats -Category " "
     $global:output += Add-Stats -Category " "
     $global:output += Add-Stats -Category " "
